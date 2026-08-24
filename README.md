@@ -96,6 +96,40 @@ mvn clean install
 Requires Java 21 and access to Adobe's public Maven repository (configured in
 [pom.xml](pom.xml)) for the AEM `uber-jar` API dependency.
 
+## Using this module in an AEM project
+
+This module builds a standalone OSGi bundle (`biz.netcentric.aialttext:aem-alt-text-ai`).
+To consume it from an existing AEM project:
+
+1. Install it into a Maven repository reachable by your project — either
+   `mvn clean install` locally, or `mvn deploy` to a shared/company repository.
+2. Add it as a dependency in the `pom.xml` of the module that should embed the bundle
+   (typically the `core` or `all` module):
+
+   ```xml
+   <dependency>
+       <groupId>biz.netcentric.aialttext</groupId>
+       <artifactId>aem-alt-text-ai</artifactId>
+       <version>1.0.0-SNAPSHOT</version>
+   </dependency>
+   ```
+
+3. If your `core` module depends on it directly, make sure the bundle is also embedded in
+   your `all` content package so it gets installed on AEM, e.g. with the
+   `filevault-package-maven-plugin`:
+
+   ```xml
+   <embedded>
+       <groupId>biz.netcentric.aialttext</groupId>
+       <artifactId>aem-alt-text-ai</artifactId>
+       <target>/apps/mysite-vendor-packages/application/install</target>
+   </embedded>
+   ```
+
+4. Once deployed, configure the `AzureOpenAIConfiguration` OSGi configuration (see
+   [Configuration](#configuration) above) and add the **"Generate AI Alt Text"** process
+   step to the relevant DAM workflow model.
+
 ## License
 
 Apache License, Version 2.0 — see [LICENSE](LICENSE).
