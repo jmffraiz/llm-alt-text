@@ -38,7 +38,7 @@ public class ImageAltTextWorkflowStep implements WorkflowProcess {
     private static final String DC_DESCRIPTION = "dc:description";
     private static final String DC_FORMAT = "dc:format";
     private static final String METADATA_PATH = com.day.cq.commons.jcr.JcrConstants.JCR_CONTENT + "/metadata";
-    private static final String PROMPT_TYPE_PARAM = "promptType";
+    private static final String PROCESS_ARGS = "PROCESS_ARGS";
     private static final String SERVICE_USER = "aialttext-service";
 
     @Reference
@@ -65,8 +65,8 @@ public class ImageAltTextWorkflowStep implements WorkflowProcess {
             return;
         }
 
-        // Extract optional prompt type from workflow metadata
-        String promptType = workflowData.getMetaDataMap().get(PROMPT_TYPE_PARAM, String.class);
+        // Extract optional prompt type from the workflow model step arguments (PROCESS_ARGS)
+        String promptType = StringUtils.trimToNull(metaDataMap.get(PROCESS_ARGS, String.class));
         LOG.debug("Workflow prompt type: {}", promptType);
 
         Session session = workflowSession.getSession();
@@ -82,7 +82,13 @@ public class ImageAltTextWorkflowStep implements WorkflowProcess {
         try {
             Resource resource = resourceResolver.getResource(payloadPath);
             if (resource == null) {
-                LOG.warn("Resource not found at path: {}", payloadPath);
+                if (session.nodeExists(payloadPath)) {
+                    LOG.warn(
+                            "Workflow payload exists but service user '{}' cannot resolve it: {}. Check DAM read permissions for the subservice.",
+                            SERVICE_USER, payloadPath);
+                } else {
+                    LOG.warn("Resource not found at path: {}", payloadPath);
+                }
                 return;
             }
 

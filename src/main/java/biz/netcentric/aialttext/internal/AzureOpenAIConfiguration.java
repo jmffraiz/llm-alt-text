@@ -18,9 +18,6 @@ public @interface AzureOpenAIConfiguration {
     @AttributeDefinition(name = "Deployment Name", description = "Azure OpenAI deployment/model name (e.g., gpt-4o)", type = AttributeType.STRING)
     String deploymentName() default "gpt-4o";
 
-    @AttributeDefinition(name = "API Version", description = "Azure OpenAI API version", type = AttributeType.STRING)
-    String apiVersion() default "2024-10-21";
-
     @AttributeDefinition(name = "Max Tokens", description = "Maximum number of tokens for alt text generation", type = AttributeType.INTEGER)
     int maxTokens() default 8192;
 

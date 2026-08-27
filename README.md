@@ -13,7 +13,7 @@ DAM assets. Companion code for the adaptTo() 2026 talk.
    - Reads the asset's original rendition and base64-encodes it.
    - Loads a system prompt (from DAM, with an in-memory TTL cache and a hardcoded
      fallback) based on a `promptType` (defaults to `alt-text`, but can be set per
-     workflow via metadata, e.g. `product-image`, `campaign`).
+     workflow via the step's Process Arguments, e.g. `product-image`, `campaign`).
    - Sends the prompt + image to Azure OpenAI's Chat Completions API (vision-capable
      deployment) behind a resilience4j circuit breaker.
    - Writes the returned text back to `jcr:content/metadata/dc:description`.
@@ -30,7 +30,6 @@ All runtime settings are exposed via the `AzureOpenAIConfiguration` OSGi configu
 | `apiKey` | Azure OpenAI API key |
 | `endpoint` | Full chat-completions URL for your Azure OpenAI deployment |
 | `deploymentName` | Model deployment name |
-| `apiVersion` | API version |
 | `maxTokens` | Generation control (max tokens) |
 | `temperature` | Generation control (blank = omit from request) |
 | `promptsBasePath` | Base path for prompt loading from DAM |
@@ -63,8 +62,9 @@ rendition is sent verbatim as the system prompt.
 
 At runtime, the two placeholders are resolved as follows:
 
-- **`{promptType}`** — taken from the `promptType` workflow metadata set on the workflow
-  model/step (see [What it does](#what-it-does) above), or `defaultPromptType` when not set.
+- **`{promptType}`** — taken from the Process Arguments (`PROCESS_ARGS`) configured on
+  the workflow model's **"Generate AI Alt Text"** step (see
+  [What it does](#what-it-does) above), or `defaultPromptType` when blank/not set.
 - **`{language}`** — extracted from the asset's path using `languagePathSegmentIndex`
   (e.g. `/content/dam/mysite/markets/gb/en/...` → `en`), falling back to
   `defaultLanguage` if the segment can't be determined.
@@ -82,10 +82,13 @@ translated per language, not just parameterized.
 every asset. The cache is cleared whenever the OSGi configuration is updated or the
 service is deactivated.
 
-If no matching prompt asset exists in the DAM (or it can't be read), the service falls
-back to the hardcoded `fallbackPromptEn` configuration property, with the literal text
-`Output language: English` replaced by the resolved language — so at minimum a fallback
-prompt always exists, even before any prompts are authored in the DAM.
+The hardcoded `fallbackPromptEn` configuration property (with the literal text
+`Output language: English` replaced by the resolved language) is only used when no
+`promptType` can be resolved at all — i.e. both the Process Arguments and
+`defaultPromptType` are blank. Once a `promptType` is resolved (even the default
+`alt-text`), the corresponding prompt asset must exist in the DAM: if it's missing or
+can't be read, `AltTextGenerationServiceImpl` throws an `AltTextGenerationException`
+instead of silently falling back.
 
 ## Build
 

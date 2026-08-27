@@ -63,7 +63,6 @@ public class AltTextGenerationServiceImpl implements AltTextGenerationService {
     private String apiKey;
     private String endpoint;
     private String deploymentName;
-    private String apiVersion;
     private int maxTokens;
     private Double temperature;
     private String promptsBasePath;
@@ -119,7 +118,6 @@ public class AltTextGenerationServiceImpl implements AltTextGenerationService {
         this.apiKey = config.apiKey();
         this.endpoint = config.endpoint();
         this.deploymentName = config.deploymentName();
-        this.apiVersion = config.apiVersion();
         this.maxTokens = config.maxTokens();
         if (StringUtils.isBlank(config.temperature())) {
             this.temperature = null;
@@ -187,9 +185,6 @@ public class AltTextGenerationServiceImpl implements AltTextGenerationService {
             throw new AltTextGenerationException("Language cannot be blank");
         }
 
-        // Use default prompt type if not specified
-        String effectivePromptType = StringUtils.isNotBlank(promptType) ? promptType : defaultPromptType;
-
         // Get original rendition
         Rendition originalRendition = asset.getRendition("original");
         if (originalRendition == null) {
@@ -206,7 +201,7 @@ public class AltTextGenerationServiceImpl implements AltTextGenerationService {
             String base64Image = Base64.getEncoder().encodeToString(imageBytes);
 
             // Load system prompt
-            String systemPrompt = loadPrompt(effectivePromptType, language);
+            String systemPrompt = loadPrompt(promptType, language);
 
             // Build API payload
             String jsonPayload = buildApiPayload(systemPrompt, base64Image, mimeType);
@@ -235,9 +230,25 @@ public class AltTextGenerationServiceImpl implements AltTextGenerationService {
      * 
      * @param promptType Prompt type identifier (e.g., "alt-text", "product-image")
      * @param language Language code (e.g., "en", "fr", "de")
-     * @return System prompt content */
-    private String loadPrompt(String promptType, String language) {
-        String cacheKey = promptType + "-" + language;
+     * @return System prompt content
+     * @throws AltTextGenerationException */
+    private String loadPrompt(String promptType, String language) throws AltTextGenerationException {
+
+        // Use default prompt type if not specified
+        if (StringUtils.isBlank(promptType)) {
+            LOG.debug("Prompt type is blank; using default prompt type: {}", defaultPromptType);
+            promptType = defaultPromptType;
+        }
+
+        String cacheKey = buildPromptCacheKey(promptType, language);
+
+        // If prompt type is still blank, use the fallback hardcoded prompt
+        if (StringUtils.isBlank(promptType)) {
+            LOG.warn("Using fallback hardcoded prompt for language: {}", language);
+            String fallbackPrompt = fallbackPromptEn.replace("Output language: English", "Output language: " + language);
+            cachePrompt(cacheKey, fallbackPrompt);
+            return fallbackPrompt;
+        }
 
         // Check cache
         CachedPrompt cached = promptCache.get(cacheKey);
@@ -248,7 +259,7 @@ public class AltTextGenerationServiceImpl implements AltTextGenerationService {
 
         // Load from DAM
         String damPath = promptsBasePath + "/" + cacheKey + ".txt";
-        LOG.debug("Loading prompt from DAM: {}", damPath);
+        LOG.debug("Attempting to load prompt from DAM: {}", damPath);
 
         try (ResourceResolver resolver = getSystemResourceResolver()) {
             Resource resource = resolver.getResource(damPath);
@@ -259,11 +270,7 @@ public class AltTextGenerationServiceImpl implements AltTextGenerationService {
                     if (originalRendition != null) {
                         try (InputStream inputStream = originalRendition.getStream()) {
                             String promptContent = IOUtils.toString(inputStream, StandardCharsets.UTF_8);
-
-                            // Cache the prompt
-                            long expiryTime = System.currentTimeMillis() + promptCacheTtlMillis;
-                            promptCache.put(cacheKey, new CachedPrompt(promptContent, expiryTime));
-
+                            cachePrompt(cacheKey, promptContent);
                             LOG.info("Loaded and cached prompt from DAM: {}", damPath);
                             return promptContent;
                         }
@@ -276,15 +283,27 @@ public class AltTextGenerationServiceImpl implements AltTextGenerationService {
             LOG.error("Error reading prompt from DAM: {}", damPath, e);
         }
 
-        // Fallback to hardcoded prompt
-        LOG.warn("Using fallback hardcoded prompt for: {}", cacheKey);
-        String fallbackPrompt = fallbackPromptEn.replace("Output language: English", "Output language: " + language);
+        LOG.error("Prompt asset not found at DAM path: {}", damPath);
+        throw new AltTextGenerationException("Prompt asset not found at DAM path: " + damPath);
 
-        // Cache the fallback prompt
+    }
+
+    /** Build the prompt cache key from prompt type and language.
+     *
+     * @param promptType Prompt type identifier
+     * @param language Language code
+     * @return Cache key in the form "{promptType}-{language}" */
+    private String buildPromptCacheKey(String promptType, String language) {
+        return promptType + "-" + language;
+    }
+
+    /** Cache prompt content under the given key using the configured TTL.
+     *
+     * @param cacheKey Cache key
+     * @param content Prompt content to cache */
+    private void cachePrompt(String cacheKey, String content) {
         long expiryTime = System.currentTimeMillis() + promptCacheTtlMillis;
-        promptCache.put(cacheKey, new CachedPrompt(fallbackPrompt, expiryTime));
-
-        return fallbackPrompt;
+        promptCache.put(cacheKey, new CachedPrompt(content, expiryTime));
     }
 
     /** Build JSON payload for Azure OpenAI Chat Completions API.

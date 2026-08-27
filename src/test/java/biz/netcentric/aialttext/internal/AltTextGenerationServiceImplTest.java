@@ -119,11 +119,6 @@ class AltTextGenerationServiceImplTest {
             }
 
             @Override
-            public String apiVersion() {
-                return "2024-10-21";
-            }
-
-            @Override
             public int maxTokens() {
                 return 125;
             }
@@ -176,6 +171,11 @@ class AltTextGenerationServiceImplTest {
             @Override
             public long circuitBreakerResetTimeout() {
                 return 60000L;
+            }
+
+            @Override
+            public String fallbackPromptEn() {
+                return "You generate SEO-focused alt text for images in a content management system.";
             }
         };
     }
