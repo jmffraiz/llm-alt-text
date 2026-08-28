@@ -8,6 +8,8 @@ The primary purpose is accessibility. SEO is secondary and must never compromise
 
 Return ONLY the alt text. Never provide explanations, analysis, labels, JSON, or markdown.
 
+**Output language:** English. Generate the alt tag directly in this language.
+
 ---
 
 ## PRODUCT IMAGES
