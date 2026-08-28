@@ -24,9 +24,6 @@ import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ResourceResolverFactory;
-import org.json.JSONArray;
-import org.json.JSONException;
-import org.json.JSONObject;
 import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Deactivate;
@@ -40,6 +37,11 @@ import biz.netcentric.aialttext.exception.AltTextGenerationException;
 import biz.netcentric.aialttext.service.AltTextGenerationService;
 import com.day.cq.dam.api.Asset;
 import com.day.cq.dam.api.Rendition;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerConfig;
@@ -51,6 +53,8 @@ import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 public class AltTextGenerationServiceImpl implements AltTextGenerationService {
 
     private static final Logger LOG = LoggerFactory.getLogger(AltTextGenerationServiceImpl.class);
+
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     private static final String CONTENT_TYPE = "application/json";
     private static final String HEADER_AUTHORIZATION = "Authorization";
@@ -211,7 +215,7 @@ public class AltTextGenerationServiceImpl implements AltTextGenerationService {
             String altText = circuitBreaker.executeSupplier(() -> {
                 try {
                     return callAzureOpenAI(jsonPayload);
-                } catch (AltTextGenerationException | JSONException e) {
+                } catch (AltTextGenerationException e) {
                     throw new RuntimeException(e);
                 }
             });
@@ -312,44 +316,44 @@ public class AltTextGenerationServiceImpl implements AltTextGenerationService {
      * @param base64Image Base64-encoded image
      * @param mimeType Image MIME type
      * @return JSON payload string */
-    String buildApiPayload(String systemPrompt, String base64Image, String mimeType) throws JSONException {
-        JSONObject payload = new JSONObject();
+    String buildApiPayload(String systemPrompt, String base64Image, String mimeType) throws JsonProcessingException {
+        ObjectNode payload = OBJECT_MAPPER.createObjectNode();
 
-        JSONArray messages = new JSONArray();
+        ArrayNode messages = OBJECT_MAPPER.createArrayNode();
 
         // System message
-        JSONObject systemMessage = new JSONObject();
+        ObjectNode systemMessage = OBJECT_MAPPER.createObjectNode();
         systemMessage.put("role", "system");
         systemMessage.put("content", systemPrompt);
-        messages.put(systemMessage);
+        messages.add(systemMessage);
 
         // User message with image
-        JSONObject userMessage = new JSONObject();
+        ObjectNode userMessage = OBJECT_MAPPER.createObjectNode();
         userMessage.put("role", "user");
 
-        JSONArray contentArray = new JSONArray();
+        ArrayNode contentArray = OBJECT_MAPPER.createArrayNode();
 
         // Image content
-        JSONObject imageContent = new JSONObject();
+        ObjectNode imageContent = OBJECT_MAPPER.createObjectNode();
         imageContent.put("type", "image_url");
 
-        JSONObject imageUrl = new JSONObject();
+        ObjectNode imageUrl = OBJECT_MAPPER.createObjectNode();
         imageUrl.put("url", "data:" + mimeType + ";base64," + base64Image);
 
-        imageContent.put("image_url", imageUrl);
-        contentArray.put(imageContent);
+        imageContent.set("image_url", imageUrl);
+        contentArray.add(imageContent);
 
-        userMessage.put("content", contentArray);
-        messages.put(userMessage);
+        userMessage.set("content", contentArray);
+        messages.add(userMessage);
 
         payload.put("model", deploymentName);
-        payload.put("messages", messages);
+        payload.set("messages", messages);
         payload.put("max_completion_tokens", maxTokens);
         if (temperature != null) {
             payload.put("temperature", temperature);
         }
 
-        return payload.toString();
+        return OBJECT_MAPPER.writeValueAsString(payload);
     }
 
     /** Call Azure OpenAI Chat Completions API.
@@ -357,7 +361,7 @@ public class AltTextGenerationServiceImpl implements AltTextGenerationService {
      * @param jsonPayload JSON request payload
      * @return Generated alt text
      * @throws AltTextGenerationException if API call fails */
-    private String callAzureOpenAI(String jsonPayload) throws AltTextGenerationException, JSONException {
+    private String callAzureOpenAI(String jsonPayload) throws AltTextGenerationException {
         String url = endpoint;
 
         LOG.info("Calling Azure OpenAI API at URL: {}", url);
@@ -381,15 +385,15 @@ public class AltTextGenerationServiceImpl implements AltTextGenerationService {
 
                 if (statusCode >= 200 && statusCode < 300) {
                     // Parse response to extract alt text
-                    JSONObject responseJson = new JSONObject(responseBody);
-                    JSONArray choices = responseJson.optJSONArray("choices");
+                    JsonNode responseJson = OBJECT_MAPPER.readTree(responseBody);
+                    JsonNode choices = responseJson.path("choices");
 
-                    if (choices != null && choices.length() > 0) {
-                        JSONObject firstChoice = choices.getJSONObject(0);
-                        JSONObject message = firstChoice.optJSONObject("message");
+                    if (choices.isArray() && choices.size() > 0) {
+                        JsonNode firstChoice = choices.get(0);
+                        JsonNode message = firstChoice.path("message");
 
-                        if (message != null) {
-                            String altText = message.optString("content", "");
+                        if (message.isObject()) {
+                            String altText = message.path("content").asText("");
                             return altText.trim();
                         }
                     }

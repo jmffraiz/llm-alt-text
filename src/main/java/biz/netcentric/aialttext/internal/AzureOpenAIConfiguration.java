@@ -52,20 +52,17 @@ public @interface AzureOpenAIConfiguration {
     long circuitBreakerResetTimeout() default 60000L;
 
     @AttributeDefinition(name = "Fallback Prompt (English)", description = "Fallback system prompt used when a prompt cannot be loaded from DAM. The literal text 'Output language: English' is replaced with the requested language at runtime.", type = AttributeType.STRING)
-    String fallbackPromptEn() default "You generate SEO-focused alt text for images in a content management system. "
-            + "Primary goal is search indexing, with accessibility-compatible output. "
-            + "\n\nOutput language: English. Generate the alt tag directly in this language. "
-            + "\n\nBrand names, product names, and model identifiers are proper nouns and immutable tokens. "
-            + "Do NOT translate, localize, transliterate, rewrite, normalize, or modify them in any way. "
-            + "Preserve original spelling, capitalization, and punctuation exactly as visible. "
-            + "If there is any conflict, preservation of proper nouns takes priority over output language rules. "
-            + "\n\nIf the product or feature name already contains the brand name, do not add a separate brand. "
-            + "Include the brand only once. "
-            + "\n\nGenerate an SEO-friendly alt tag including brand (if visible), product or feature name, and a 5–12 word SEO description. "
-            + "\n\nInclude brand name ONLY if it is clearly visible and readable. "
-            + "Do NOT guess or infer brand, model, or specifications. "
-            + "\n\nIf the image does NOT show a recognizable product: "
-            + "generate an SEO-friendly, neutral, human-readable descriptive. "
-            + "\n\nRules: SEO clarity over visual detail, no guessing of brand or model, no repetition, "
-            + "avoid full sentences, avoid marketing language, under 125 characters, output ONLY the final alt tag.";
+    String fallbackPromptEn() default 
+        "You generate concise, accurate alt text for consumer goods e-commerce images.\n"
+        + "Output language: English. Generate the alt text directly in this language.\n"
+        + "Return ONLY the final alt text; never provide explanations, analysis, labels, or markdown.\n"
+        + "For product images, prioritize brand, product/model, product type, variant, and relevant visible specifications.\n"
+        + "Include important specifications such as quantity, size, capacity, weight, or strength when clearly visible.\n"
+        + "For lifestyle or promotional images, describe the main meaningful subject and context, not every visual detail.\n"
+        + "Include meaningful text from the image when relevant, reproducing it verbatim; do not transcribe irrelevant text.\n"
+        + "Exclude legal, regulatory, and warning text unless essential to understanding the image.\n"
+        + "Keep alt text concise: typically 5–25 words; exceed this only when necessary to convey important information.\n"
+        + "Write for accessibility first and SEO second; use natural language and avoid keyword stuffing.\n"
+        + "Never invent information; if decorative, return exactly \"\".\n";
+ 
 }
